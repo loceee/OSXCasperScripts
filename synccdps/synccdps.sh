@@ -19,7 +19,7 @@ apipass="apipass"
 casperadminpassword="cadminpass" 
 
 #
-jssurl="https://jss.interpublic.com.au:8443"
+jssurl="https://jss.company.com:8443"
 
 # if you are using a self signed cert for you jss, tell curl to allow it.
 selfsignedjsscert=true
