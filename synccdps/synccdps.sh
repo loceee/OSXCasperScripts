@@ -18,15 +18,23 @@ apipass="apipass"
 # we can't read this from the api
 casperadminpassword="cadminpass" 
 
-#
+# you know
 jssurl="https://jss.company.com:8443"
 
 # if you are using a self signed cert for you jss, tell curl to allow it.
 selfsignedjsscert=true
 
+# your local casper share path 
+masterlocalpath="/Volumes/Data/CasperShare"
+
+logto="/var/log/synccdps.log"
+
 #
 # don't touch below.
 #
+
+#set -xv
+exec 1> $logto 2>&1
 
 if $selfsignedjsscert
 then
@@ -37,7 +45,7 @@ fi
 
 
 # make tmp folder
-tmpdir="/tmp/rsyncdp-$$" # i need to find you during debug
+tmpdir="/tmp/rsyncdp-$$"
 cdplist="$tmpdir/cdplist.xml"
 cdpdata="$tmpdir/cdpdata"
 mkdir "$tmpdir"
@@ -95,18 +103,12 @@ do
 	cdpshare[$i]=$(xpath "$cdpdata/${cdpname[$i]}.xml" //distribution_point/share_name 2> /dev/null | sed -e 's/<share_name>//g;s/<\/share_name>//g')
 	cdpusername[$i]=$(xpath "$cdpdata/${cdpname[$i]}.xml" //distribution_point/read_write_username 2> /dev/null | sed -e 's/<read_write_username>//g;s/<\/read_write_username>//g')
 	cdpsshname[$i]=$(xpath "$cdpdata/${cdpname[$i]}.xml" //distribution_point/ssh_username 2> /dev/null | sed -e 's/<ssh_username>//g;s/<\/ssh_username>//g')
-
-	if [ "${cdpismaster[$i]}" == "true" ]
-	then
-		masterlocalpath="${cdplocalpath[$i]}"
-		echo "local path: $masterlocalpath"
-	fi
 done
 
 for (( i=1; i<=$cdpsize; i++ ))
 do
 
-	[ "${cdpismaster[$i]}" == "true" ] && continue	# if it's the master, skip it
+	[ "${cdpismaster[$i]}" == "true" ] && continue	# if it's the master, skip it, we don't sync to ourself, silly beans
 
 	mountpath="/tmp/${cdpshare[$i]}"
 	if [ -d "$mountpath" ]
@@ -139,7 +141,7 @@ do
 	
 	echo "rsyncing to ${cdpname[$i]}: $(date) ..."
 	#rsync -av --delete --exclude=".*" --no-perms --omit-dir-times  "$masterlocalpath/" "$mountpath/"
-	rsync -rlDv --delete --exclude=".*" "$masterlocalpath/" "$mountpath/"
+	rsync -rltDv --delete --exclude=".*" "$masterlocalpath/" "$mountpath/"
 	error="$?"	
 	# rsync error handler - we can ignore a couple of common errors
 	
@@ -168,7 +170,7 @@ do
 done
 
 echo
-echo "finshed !"
+echo "finished !"
 echo "======================================================================="
 echo "rsync to cdps finshed: $(date)"
 
