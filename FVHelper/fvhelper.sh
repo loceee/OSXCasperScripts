@@ -14,6 +14,7 @@ skipusers=( "admin" )
 fvpolicyid="3975"
 fvhelperreceipt="/Library/Application Support/JAMF/Receipts/FVHelper"
 
+spawned="${1}" # used internally
 username="${3}"
 
 checkProcess()
@@ -82,9 +83,32 @@ logoutUser()
 	# we should have really logged out by now!
 }
 
+spawnScript()
+{
+	# we use this so we can execute from self service.app and call a logout with out breaking policy execution.
+	# the script copies, then spawns itself 
+	if [ "$spawned" != "--spawned" ]
+	then
+		tmpscript="$(mktemp /tmp/fvhelper.XXXXXXXXXXXXXXX)"
+		cp "${0}" "${tmpscript}"
+		# spawn the script in the background
+		echo "spawned script $tmpscript"
+		chmod 700 "${tmpscript}"
+		"${tmpscript}" --spawned '' ${username} &
+		exit 0
+	fi
+}
+
+cleanUp()
+{
+	[ "$spawned" == "--spawned" ] && rm "${0}" 	#if we are spawned, eat ourself.
+}
+
 #
 # Start the bidness
 #
+
+spawnScript
 
 until checkProcess "Finder.app"
 do
@@ -98,6 +122,7 @@ do
 	if [ "${username}" == "${skipuser}" ]
 	then
 		echo "${username} shouldn't be filevaulted by fvhelper, bye."
+		cleanUp
 		exit 0
 	fi
 done
@@ -124,4 +149,5 @@ else
 	jamf recon
 fi
 
+cleanUp
 exit 0
