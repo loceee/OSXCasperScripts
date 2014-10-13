@@ -103,6 +103,7 @@ do
 done
 
 if [ ! -f "${fvhelperreceipt}" ] # no receipt, we can prompt to enable FV.
+then
 	if [ "$(checkConsoleStatus)" == "userloggedin" ] # double check we have logged in user
 	then
 		filevaultprompt=$(osascript -e "display dialog \"This Mac requires FileVault Encryption.
@@ -116,6 +117,7 @@ Would you like to enable for ${username} ?\" with icon file \"System:Library:Cor
 			logoutUser
 		else
 			echo "user skipped FV"
+		fi
 	fi
 else
 	# if we've run the policy and the receipt exists, the JSS isn't up to date, recon.
