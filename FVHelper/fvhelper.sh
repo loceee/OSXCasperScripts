@@ -10,8 +10,9 @@
 # - call it at login trigger so we don't forget to enable FV
 # - execute it via self service and it will logout for you
 
-skipusers=( "admin" )
-fvpolicyid="3975"
+skipusers=( "admin" ) 		# prevent these users from being prompted (your local management accounts etc.)
+fvpolicy="-id 1234"			# use either the policy id or a custom trigger of your FV policy.
+#fvpolicy="-trigger filevault"
 fvhelperreceipt="/Library/Application Support/JAMF/Receipts/FVHelper"
 
 spawned="${1}" # used internally
@@ -139,7 +140,7 @@ Would you like to enable for ${username} ?\" with icon file \"${dialogicon}\" bu
 		if [ "$filevaultprompt" == "Enable FileVault and Restart..." ]
 		then
 			echo "jamf please call the fv policy"
-			jamf policy -id ${fvpolicyid}
+			jamf policy ${fvpolicy}
 			touch "${fvhelperreceipt}"
 			osascript -e "display dialog \"FileVault has been enabled. Your Mac will now logout, prompt you for your password and then restart to finalise the encryption process.\" with icon file \"${dialogicon}\" buttons {\"OK\"} default button 1 giving up after 20"
 			logoutUser
