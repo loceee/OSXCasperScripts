@@ -17,6 +17,8 @@ fvhelperreceipt="/Library/Application Support/JAMF/Receipts/FVHelper"
 spawned="${1}" # used internally
 username="${3}"
 
+dialogicon="System:Library:CoreServices:CoreTypes.bundle:Contents:Resources:FileVaultIcon.icns"
+
 checkProcess()
 {
 	if [ "$(ps aux | grep "${1}" | grep -v grep)" != "" ]
@@ -133,12 +135,13 @@ then
 	then
 		filevaultprompt=$(osascript -e "display dialog \"This Mac requires FileVault Encryption.
 
-Would you like to enable for ${username} ?\" with icon file \"System:Library:CoreServices:CoreTypes.bundle:Contents:Resources:FileVaultIcon.icns\" buttons {\"Later\",\"Enable Filevault...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
-		if [ "$filevaultprompt" == "Enable Filevault..." ]
+Would you like to enable for ${username} ?\" with icon file \"${dialogicon}\" buttons {\"Later\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+		if [ "$filevaultprompt" == "Enable FileVault and Restart..." ]
 		then
 			echo "jamf please call the fv policy"
 			jamf policy -id ${fvpolicyid}
 			touch "${fvhelperreceipt}"
+			osascript -e "display dialog \"FileVault has been enabled. Your Mac will now logout, prompt you for your password and then restart to finalise the encryption process.\" with icon file \"${dialogicon}\" buttons {\"OK\"} default button 1 giving up after 20"
 			logoutUser
 		else
 			echo "user skipped FV"
