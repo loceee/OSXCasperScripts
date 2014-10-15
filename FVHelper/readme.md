@@ -16,7 +16,7 @@ Vague instructions
 
 1. Setup your FV config (set it to run at **Current or Next User**) equiv of. *fdsetup -defer*
 3. Setup a smart group to catch eligible computers
-	* FileVault 2 Eligibility ** is Eligible **
+	* FileVault 2 Eligibility **is Eligible**
 	* **AND** **(** FileVault 2 Partition Encryp State **is not Encrypted**
 	* **AND** File Vault 2 Partition 2 Encrypt State **is not Encrypting )**
 	* **AND**  ... your other criteria (eg. computer model like **book**).

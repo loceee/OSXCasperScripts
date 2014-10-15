@@ -32,26 +32,25 @@ checkProcess()
 
 checkConsoleStatus()
 {
-	psauxout="$(ps aux)"
 	userloggedin="$(who | grep console | awk '{print $1}')"
 	consoleuser="$(ls -l /dev/console | awk '{print $3}')"
-	screensaver="$(echo $psauxout | grep ScreenSaverEngine | grep -v grep)"
+	screensaver="$(ps aux | grep ScreenSaverEngine | grep -v grep)"
 
-	if [ "$screensaver" != "" ]
+	if [ "${screensaver}" != "" ]
 	then
 		# screensaver is running
 		echo "screensaver"
 		return
 	fi
 	
-	if [ "$userloggedin" == "" ]
+	if [ "${userloggedin}" == "" ]
 	then
 		# no users logged in (at loginwindow)
 		echo "nologin"
 		return
 	fi
 	
-	if [ "$userloggedin" != "$consoleuser" ]
+	if [ "${userloggedin}" != "${consoleuser}" ]
 	then
 		# a user is loggedin, but we are at loginwindow or we have multiple users logged in with switching (too hard for now)
 		echo "loginwindow"
@@ -67,7 +66,7 @@ logoutUser()
 {
 	waitforlogout=30
 	# sending appleevent seems most robust and fastest way, can still be blocked by stuck app (I'm looking at you MS Office and Lync)
-	secho "sending logout ..."
+	echo "sending logout ..."
 	osascript -e "ignoring application responses" -e "tell application \"loginwindow\" to $(printf \\xc2\\xab)event aevtrlgo$(printf \\xc2\\xbb)" -e "end ignoring"
 
 	while [ "$(checkConsoleStatus)" != "nologin" ]
