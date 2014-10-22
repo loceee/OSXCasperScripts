@@ -9,12 +9,14 @@ By leveraging the FileVault config built into Casper, we can utilise jamf's key 
 
 Launching FVHelper on the login trigger means that the first user to logon to a FV "eligible" unencrypted Mac will be prompted to enable Filevault. From the enduser or desktop support perspective, FV is enabled in the background, they are prompted that in order to complete the process they must be logged out and enter their password again.
 
+##### New: Defer Mode!
+
 **TODO:** handle additional FV unlock accounts post FV enable.
 
 Vague instructions
 ------------------
 
-1. Setup your FV config (set it to run at **Current or Next User**) equiv of. *fdsetup -defer*
+1. Setup your FV config (set it to run at **Current or Next User**) equiv of. *fdesetup -defer*
 3. Setup a smart group to catch eligible computers
 	* FileVault 2 Eligibility **is Eligible**
 	* **AND** **(** FileVault 2 Partition Encryp State **is not Encrypted**

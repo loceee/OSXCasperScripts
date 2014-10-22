@@ -9,16 +9,36 @@
 # - allows you to skip a management account(s)
 # - call it at login trigger so we don't forget to enable FV
 # - execute it via self service and it will logout for you
+# - give users a few defers now
 
 skipusers=( "admin" ) 		# prevent these users from being prompted (your local management accounts etc.)
-fvpolicy="-id 1234"			# use either the policy id or a custom trigger of your FV policy.
-#fvpolicy="-trigger filevault"
-fvhelperreceipt="/Library/Application Support/JAMF/Receipts/FVHelper"
+#fvpolicy="-id 1234"			# use either the policy id or a custom trigger of your FV policy.
+fvpolicy="-trigger filevault"
+
+# users can defer x fv enable prompts
+defermode=true
+deferthreshold=5
 
 spawned="${1}" # used internally
 username="${3}"
+[ "${username}" == "" ] && username="$(who | grep console | awk '{print $1}')" # if running from self service
+
+
+# localise your prompts
+
+msgpromptenable="This Mac requires FileVault Encryption.
+
+Would you like to enable for ${username} ?"
+msgpromptenableforce="This Mac requires FileVault Encryption.
+
+You MUST enable FileVault for ${username} NOW!"
+msgenabled="FileVault has been enabled.
+
+Your Mac will now logout, prompt you for your password and then restart to initiate the background encryption process."
 
 dialogicon="System:Library:CoreServices:CoreTypes.bundle:Contents:Resources:FileVaultIcon.icns"
+prefs="/Library/Preferences/com.github.loceee.fvhelper"
+
 
 checkProcess()
 {
@@ -117,8 +137,6 @@ do
 	sleep 3
 done
 
-[ "${username}" == "" ] && username="$(who | grep console | awk '{print $1}')" # if running from self service
-
 for skipuser in ${skipusers[@]}
 do
 	if [ "${username}" == "${skipuser}" ]
@@ -129,26 +147,48 @@ do
 	fi
 done
 
-if [ ! -f "${fvhelperreceipt}" ] # no receipt, we can prompt to enable FV.
+if [ "$(fdesetup status)" == "FileVault is Off." ] # FV is off, lets prompt
 then
 	if [ "$(checkConsoleStatus)" == "userloggedin" ] # double check we have logged in user
 	then
-		filevaultprompt=$(osascript -e "display dialog \"This Mac requires FileVault Encryption.
+		if $defermode
+		then
+			# read defercounter if exists, write if not
+			defercount=$(defaults read "${prefs}" DeferCount 2> /dev/null)
+			if [ "$?" != "0" ]
+			then
+				defaults write "${prefs}" DeferCount -int 0
+				defercount=0
+			fi
 
-Would you like to enable for ${username} ?\" with icon file \"${dialogicon}\" buttons {\"Later\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+			deferremain=$(( deferthreshold - defercount ))
+			if [ ${deferremain} -eq 0 ] || [ ${deferremain} -lt 0 ]
+			then
+				filevaultprompt=$(osascript -e "display dialog \"$msgpromptenableforce\" with icon file \"${dialogicon}\" buttons {\"Enable FileVault and Restart...\"} default button 1" | cut -d, -f1 | cut -d: -f2)
+			else
+				filevaultprompt=$(osascript -e "display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later (${deferremain} remaining)\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+			fi
+		else
+			# no defer mode, just prompt
+			filevaultprompt=$(osascript -e "display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+		fi
 		if [ "$filevaultprompt" == "Enable FileVault and Restart..." ]
 		then
 			echo "jamf please call the fv policy"
 			jamf policy ${fvpolicy}
-			touch "${fvhelperreceipt}"
-			osascript -e "display dialog \"FileVault has been enabled. Your Mac will now logout, prompt you for your password and then restart to finalise the encryption process.\" with icon file \"${dialogicon}\" buttons {\"OK\"} default button 1 giving up after 20"
+			osascript -e "display dialog \"${msgenabled}\" with icon file \"${dialogicon}\" buttons {\"OK\"} default button 1 giving up after 20"
+			rm "${prefs}.plist"
 			logoutUser
+		elif [ "$filevaultprompt" == "Later (${deferremain} remaining)" ]
+			then
+			(( defercount ++ ))
+			defaults write "${prefs}" DeferCount -int ${defercount}
 		else
 			echo "user skipped FV"
 		fi
 	fi
 else
-	# if we've run the policy and the receipt exists, the JSS isn't up to date, recon.
+	# if we've run this policy FV ISN'T off, the JSS isn't up to date so this mac hasn't falled out of the smart group, recon. this will run post-reboot.
 	jamf recon
 fi
 
