@@ -164,19 +164,19 @@ then
 			deferremain=$(( deferthreshold - defercount ))
 			if [ ${deferremain} -eq 0 ] || [ ${deferremain} -lt 0 ]
 			then
-				filevaultprompt=$(osascript -e "display dialog \"$msgpromptenableforce\" with icon file \"${dialogicon}\" buttons {\"Enable FileVault and Restart...\"} default button 1" | cut -d, -f1 | cut -d: -f2)
+				filevaultprompt=$(sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"$msgpromptenableforce\" with icon file \"${dialogicon}\" buttons {\"Enable FileVault and Restart...\"} default button 1" | cut -d, -f1 | cut -d: -f2)
 			else
-				filevaultprompt=$(osascript -e "display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later (${deferremain} remaining)\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+				filevaultprompt=$(sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later (${deferremain} remaining)\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
 			fi
 		else
 			# no defer mode, just prompt
-			filevaultprompt=$(osascript -e "display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+			filevaultprompt=$(sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
 		fi
 		if [ "$filevaultprompt" == "Enable FileVault and Restart..." ]
 		then
 			echo "jamf please call the fv policy"
 			jamf policy ${fvpolicy}
-			osascript -e "display dialog \"${msgenabled}\" with icon file \"${dialogicon}\" buttons {\"OK\"} default button 1 giving up after 20"
+			sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"${msgenabled}\" with icon file \"${dialogicon}\" buttons {\"OK\"} default button 1 giving up after 20"
 			rm "${prefs}.plist"
 			logoutUser
 		elif [ "$filevaultprompt" == "Later (${deferremain} remaining)" ]
