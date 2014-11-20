@@ -193,11 +193,14 @@ then
 			"${jamfhelper}" -windowType utility -description "${msgenabled}" -icon "${dialogicon}" -button1 "Ok" -defaultButton 1
 			rm "${prefs}.plist"
 			logoutUser
-		elif [ "$filevaultprompt" == "2" ] && $defermode
+		elif [ "$filevaultprompt" == "2" ]
+		then
+			if $defermode
 			then
-			(( defercount ++ ))
-			defaults write "${prefs}" DeferCount -int ${defercount}
-			echo "user skipped FV - defercounter: ${defercount}" 
+				(( defercount ++ ))
+				defaults write "${prefs}" DeferCount -int ${defercount}	
+				echo "user skipped FV - defercounter: ${defercount}" 
+			fi
 		else
 			echo "user skipped FV"
 		fi
