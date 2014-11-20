@@ -12,6 +12,8 @@
 	<dict>
 		<key>Hour</key>
 		<integer>21</integer>
+		<key>Minute</key>
+		<integer>0</integer>
 	</dict>
 </dict>
 </plist>

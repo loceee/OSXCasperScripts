@@ -10,6 +10,8 @@
 # - call it at login trigger so we don't forget to enable FV
 # - execute it via self service and it will logout for you
 # - give users a few defers now
+# - added --selfservice mode, skips user check and spawns (when spawning all runs you don't get meaninful logs back to jss)
+# - change to jamfHelper for dialogs, too many broken scripting plugins on our fleet, causing issues displaying dialogs
 
 skipusers=( "admin" ) 		# prevent these users from being prompted (your local management accounts etc.)
 #fvpolicy="-id 1234"			# use either the policy id or a custom trigger of your FV policy.
@@ -21,22 +23,26 @@ deferthreshold=5
 
 spawned="${1}" # used internally
 username="${3}"
+selfservice="${4}" # will spawn and skip username trip if not empty
 [ "${username}" == "" ] && username="$(who | grep console | awk '{print $1}')" # if running from self service
 
 
 # localise your prompts
 
-msgpromptenable="This Mac requires FileVault Encryption.
+msgprompthead="This Mac requires FileVault Encryption"
+msgpromptenable="Enabling FileVault requires a restart.
 
 Would you like to enable for ${username} ?"
-msgpromptenableforce="This Mac requires FileVault Encryption.
+msgpromptenableforce="Enabling FileVault requires a restart.
 
 You MUST enable FileVault for ${username} NOW!"
 msgenabled="FileVault has been enabled.
 
 Your Mac will now logout, prompt you for your password and then restart to initiate the background encryption process."
 
-dialogicon="System:Library:CoreServices:CoreTypes.bundle:Contents:Resources:FileVaultIcon.icns"
+dialogicon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/FileVaultIcon.icns"
+jamfhelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+
 prefs="/Library/Preferences/com.github.loceee.fvhelper"
 
 
@@ -130,22 +136,29 @@ cleanUp()
 # Start the bidness
 #
 
-spawnScript
+# if self service, spawn and skip username check (perhaps we want to enable for this user)
+if [ -n "${selfservice}" ]
+then
+	spawnScript
+else
+	for skipuser in ${skipusers[@]}
+	do
+		if [ "${username}" == "${skipuser}" ]
+		then
+			echo "${username} shouldn't be filevaulted by fvhelper, bye."
+			cleanUp
+			exit 0
+		fi
+	done
+fi
+
+# if starting on login trigger, wait for the finder to start
 
 until checkProcess "Finder.app"
 do
 	sleep 3
 done
 
-for skipuser in ${skipusers[@]}
-do
-	if [ "${username}" == "${skipuser}" ]
-	then
-		echo "${username} shouldn't be filevaulted by fvhelper, bye."
-		cleanUp
-		exit 0
-	fi
-done
 
 if [ "$(fdesetup status)" == "FileVault is Off." ] # FV is off, lets prompt
 then
@@ -164,25 +177,27 @@ then
 			deferremain=$(( deferthreshold - defercount ))
 			if [ ${deferremain} -eq 0 ] || [ ${deferremain} -lt 0 ]
 			then
-				filevaultprompt=$(sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"$msgpromptenableforce\" with icon file \"${dialogicon}\" buttons {\"Enable FileVault and Restart...\"} default button 1" | cut -d, -f1 | cut -d: -f2)
+				filevaultprompt=$("${jamfhelper}" -windowType utility -heading "${msgprompthead}" -alignHeading center -description "${msgpromptenableforce}" -icon "${dialogicon}" -button1 "Enable..."  -defaultButton 1)
 			else
-				filevaultprompt=$(sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later (${deferremain} remaining)\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+				filevaultprompt=$("${jamfhelper}" -windowType utility -heading "${msgprompthead}" -alignHeading center -description "${msgpromptenable}
+(You may defer ${deferremain} more times)" -icon "${dialogicon}" -button1 "Enable..."  -button2 "Later" -defaultButton 1 -cancelButton 2)
 			fi
 		else
 			# no defer mode, just prompt
-			filevaultprompt=$(sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"${msgpromptenable}\" with icon file \"${dialogicon}\" buttons {\"Later\",\"Enable FileVault and Restart...\"} default button 2" | cut -d, -f1 | cut -d: -f2)
+			filevaultprompt=$("${jamfhelper}" -windowType utility -heading "${msgprompthead}" -alignHeading center -description "${msgpromptenable}" -icon "${dialogicon}" -button1 "Enable..."  -button2 "Later" -defaultButton 1 -cancelButton 2)
 		fi
-		if [ "$filevaultprompt" == "Enable FileVault and Restart..." ]
+		if [ "$filevaultprompt" == "0" ]
 		then
 			echo "jamf please call the fv policy"
 			jamf policy ${fvpolicy}
-			sudo -u ${username} osascript -e "tell application \"System Events\" to display dialog \"${msgenabled}\" with icon file \"${dialogicon}\" buttons {\"OK\"} default button 1 giving up after 20"
+			"${jamfhelper}" -windowType utility -description "${msgenabled}" -icon "${dialogicon}" -button1 "Ok" -defaultButton 1
 			rm "${prefs}.plist"
 			logoutUser
-		elif [ "$filevaultprompt" == "Later (${deferremain} remaining)" ]
+		elif [ "$filevaultprompt" == "2" ] && $defermode
 			then
 			(( defercount ++ ))
 			defaults write "${prefs}" DeferCount -int ${defercount}
+			echo "user skipped FV - defercounter: ${defercount}" 
 		else
 			echo "user skipped FV"
 		fi
