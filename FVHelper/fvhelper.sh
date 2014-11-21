@@ -136,6 +136,8 @@ cleanUp()
 # Start the bidness
 #
 
+exitcode=0
+
 # if self service, spawn and skip username check (perhaps we want to enable for this user)
 if [ -n "${selfservice}" ]
 then
@@ -204,11 +206,14 @@ then
 		else
 			echo "user skipped FV"
 		fi
+	else
+		echo "there is no console user active, consolestatus: $(checkConsoleStatus)..."
 	fi
 else
 	# if we've run this policy FV ISN'T off, the JSS isn't up to date so this mac hasn't falled out of the smart group, recon. this will run post-reboot.
+	echo "FileVault is ON or encrypting, will recon to update JSS."
 	jamf recon
 fi
 
 cleanUp
-exit 0
+exit $exitcode
