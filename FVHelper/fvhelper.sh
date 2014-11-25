@@ -162,7 +162,7 @@ do
 done
 
 
-if [ "$(fdesetup status)" == "FileVault is Off." ] # FV is off, lets prompt
+if [ "$(fdesetup status | grep "FileVault is Off.")" == "FileVault is Off." ] # FV is off, lets prompt
 then
 	if [ "$(checkConsoleStatus)" == "userloggedin" ] # double check we have logged in user
 	then
