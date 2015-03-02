@@ -12,7 +12,7 @@
 # YOU HAVE BEEN WARNED!
 #
 # (it won't handle fusion disks)
-# lachlan.stewart@interpublic.com
+# http://github.com/loceee
 
 numberofinternals=0
 

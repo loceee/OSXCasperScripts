@@ -27,6 +27,10 @@ selfsignedjsscert=true
 # your local casper share path 
 masterlocalpath="/Volumes/Data/CasperShare"
 
+# local netboot image path (inc .nbi folder) - sync your production netboot nbi to NetSUS
+# blank to disable
+#localnetbootpath="/Library/NetBoot/NetBootSP0/NetBoot.nbi"
+
 # you need this ... http://caspian.dotconf.net/menu/Software/SendEmail/
 # and I expect to find it at $sendemail
 sendemail="$(dirname $0)/sendEmail"		# comment or blank to disable email sending
@@ -81,7 +85,7 @@ errorHander()
 		cat "${log}" >> "${tmpdir}/erroremail.tmp"
 		for emailaddress in ${erroremails[@]}
 		do
-			${sendEmail} -f ${fromemail} -t ${emailaddress} -u "ERROR: $(basename ${0}) from $(hostname)" -o message-file="${tmpdir}/erroremail.tmp" -s ${smtpserver} -xu ${smtpuser} -xp ${smtppass} 
+			${sendemail} -o tls=no -f ${fromemail} -t ${emailaddress} -u "ERROR: $(basename ${0}) from $(hostname)" -o message-file="${tmpdir}/erroremail.tmp" -s ${smtpserver} -xu ${smtpuser} -xp ${smtppass} 
 		done
 	fi
 	rm -R "${tmpdir}"
@@ -110,10 +114,21 @@ unmountShare()
 	fi
 }
 
+makeMountPath()
+{
+	if [ -d "${mountpath}" ]
+	then
+		echo "${mountpath} exists.. just throwing it an umount"
+		umount "${mountpath}"
+	else	
+		mkdir "${mountpath}"
+	fi
+}
+
 echo "rsync to cdps started: $(date)"
 echo "======================================================================="
 echo "getting cdp details from ${jssurl} ..."
-curl ${curlopts} -s -u "${apiuser}":"${apipass}" ${jssurl}/JSSResource/distributionpoints > "${cdplist}"
+curl ${curlopts} -H "Content-Type: application/xml" -s -u "${apiuser}":"${apipass}" ${jssurl}/JSSResource/distributionpoints > "${cdplist}"
 # get number of cdps
 cdpsize=$(xpath "${cdplist}" //distribution_points/size 2> /dev/null | sed -e 's/<size>//g;s/<\/size>//g')
 
@@ -122,7 +137,7 @@ for (( i=1; i<=${cdpsize}; i++ ))
 do
 	cdpname[${i}]=$(xpath "${cdplist}" //distribution_points/distribution_point[${i}]/name 2> /dev/null | sed -e 's/<name>//g;s/<\/name>//g')
 	echo "getting details for ${cdpname[${i}]} ..."
-	curl $curlopts -s -u $apiuser:$apipass ${jssurl}/JSSResource/distributionpoints/name/$(echo ${cdpname[${i}]} | sed -e 's/ /\+/g') > "${cdpdata}/${cdpname[${i}]}.xml"
+	curl ${curlopts} -H "Content-Type: application/xml" -s -u "${apiuser}":"${apipass}" ${jssurl}/JSSResource/distributionpoints/name/$(echo ${cdpname[${i}]} | sed -e 's/ /\+/g') > "${cdpdata}/${cdpname[${i}]}.xml"
 	cdpip[${i}]=$(xpath "${cdpdata}/${cdpname[${i}]}.xml" //distribution_point/ip_address 2> /dev/null | sed -e 's/<ip_address>//g;s/<\/ip_address>//g')
 	cdplocalpath[${i}]=$(xpath "${cdpdata}/${cdpname[${i}]}.xml" //distribution_point/local_path 2> /dev/null | sed -e 's/<local_path>//g;s/<\/local_path>//g')
 	cdpismaster[${i}]=$(xpath "${cdpdata}/${cdpname[${i}]}.xml" //distribution_point/is_master 2> /dev/null | sed -e 's/<is_master>//g;s/<\/is_master>//g')
@@ -138,13 +153,7 @@ do
 	[ "${cdpismaster[${i}]}" == "true" ] && continue	# if it's the master, skip it, we don't sync to ourself, silly beans
 
 	mountpath="/tmp/${cdpshare[${i}]}"
-	if [ -d "${mountpath}" ]
-	then
-		echo "${mountpath} exists.. just throwing it an umount"
-		umount "${mountpath}"
-	else	
-		mkdir "${mountpath}"
-	fi
+	makeMountPath
 
 	echo
 	echo "-----------------------------------------------------------------------"
@@ -195,6 +204,20 @@ do
 	fi
 	# done, unmount this server
 	unmountShare
+
+	# if we are syncing netboot images to cdps as well, do it.
+	if [ -n "${localnetbootpath}" ]
+	then
+		echo "mounting NetBoot share on NetSUS and syncing.."
+		mountpath="/tmp/NetBoot"
+		makeMountPath
+		mount_smbfs //smbuser:${casperadminpassword}@${cdpip[${i}]}/NetBoot "$mountpath"
+		mounterror="$?"
+		[ "${mounterror}" != "0" ] && errorHander "${cdpname[${i}]} Problem Syncing Netboot image - mount_smbfs returned ${mounterror}"]
+		rsync -rltDv --delete --exclude=".*" "${localnetbootpath}/" "${mountpath}/NetBoot.nbi/"
+		unmountShare
+	fi
+
 done
 
 echo
