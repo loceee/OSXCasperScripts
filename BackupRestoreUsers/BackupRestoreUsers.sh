@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.98"
+version="0.99"
 #
 # BackupRestoreUsers
 #
@@ -7,7 +7,9 @@ version="0.98"
 # ----------------
 # usage:
 # 
-# configure your backuprepo as below (default: backuproot="$(dirname $0)/_UserBackups")
+# configure your backuprepo as below (default: backuproot="$(dirname "$0")/_UserBackups")
+#
+# or
 #
 # copy the script folder to a share, then launch script via the xxx.command wrappers.
 #
@@ -35,20 +37,18 @@ version="0.98"
 # get info set the -backup.sh to run BEFORE, and -restore.sh to run AFTER
 #
 #
-# bugs. GUI can get stuck on osascript. sometimes crashes? more testing.
+# CDP mode
+# ---------
+# If you had an additonal UserBackup share on your CDPs, you can set the script
+# to cdpmode=true, it will look for a mounted "CasperShare" (set in $caspersharename)
+# and then attempt to mount and backup/restore to/from that server/share using the
+# supplied credentials. In a multisite install this could be helpful and reduce config
+# and admin overhead --- findServer - function assumes afp CDP. adjust as you see fit
+#
 #
 # more info lachlan.stewart@interpublic.com
 ##############################################################
-#
-# 0.1 casperimaging spin off - BackupRestoreUsers.sh was getting to big for it's boots
-# 0.2 added initial gui and user exclusion
-# 0.3 merged functionality from old script -- can now run interactively 
-# 0.9 testing release
-# 0.91 added functionality to deal with alternate user paritions that are mounted with fstab, and flags for /Users/.nobackup (automated wipe)
-# 0.92 changed to ditto due to some bugs in tar - enabled compression by default
-# 0.93 compression off, faster without
-# 0.94 another day, another method.. now will create a spareimage and rsync. this should be most robust
-# 0.95 fixed flush users bug, discovers caspermount server to do away with network segment code. assumes you are using cdp for userbackup location
+
 
 ###############################
 #
@@ -90,7 +90,7 @@ userbackupshare="UserBackup"
 # manual backuproot
 #
 
-backuproot="$(dirname $0)/_UserBackups"		# backup to ./_UserBackups/ in this script folder
+backuproot="$(dirname "$0")/_UserBackups"		# backup to ./_UserBackups/ in this script folder
 
 # single network destinations
 # ----------------------------
@@ -111,20 +111,20 @@ if [ "$networksegment" != "" ]
 then
 	case $networksegment in
 		10.132.11 )
-			# site: BNE SMT
-			afpurl="afp://userbackup:userbackup@10.132.11.18/UserBackup"
+			# site1
+			afpurl="afp://userbackup:userbackup@server1.domain.com/UserBackup"
 			;;
 		10.128.15 )
-			# MEB 520BST 
-			afpurl="afp://userbackup:userbackup@10.128.15.19/UserBackup"
+			# site2 
+			afpurl="afp://userbackup:userbackup@server2.domain.com/UserBackup"
 			;;
 		10.132.9 )
-			# MEB McCann  	
-			afpurl="afp://userbackup:userbackup@10.132.9.21/UserBackup"
+			# site3  	
+			afpurl="afp://userbackup:userbackup@server3.domain.com/UserBackup"
 			;;
 		10.132.108 | 10.128.20 | 10.132.3 | 10.132.12 )
-			# SYD McCann/CMG
-			afpurl="afp://userbackup:userbackup@10.128.20.120/UserBackup"
+			# site4 - handle multi matches like this
+			afpurl="afp://userbackup:userbackup@server4.domain.com/UserBackup"
 			;;
 		*)
 			# default fallback
@@ -135,7 +135,6 @@ then
 fi
 
 scriptname="BackupRestoreUsers"
-
 
 #####################################
 #
@@ -154,7 +153,7 @@ secho()
 	dialogtimeout="$2"
 	echo "$message"
 	echo "$message" >> "$logto/$log"
-	[ "$dialogtimeout" != "" ] && osascript -e "tell app \"System Events\"" -e "activate" -e "display dialog \"$message\" buttons {\"...\"} giving up after $dialogtimeout" -e "end tell"	
+	[ "$dialogtimeout" != "" ] && osascript -e "tell app \"System Events\"" -e "activate" -e "display dialog \"$message\" buttons {\"...\"} giving up after $dialogtimeout" -e "end tell" > /dev/null
 }
 
 errorHander()
@@ -162,7 +161,7 @@ errorHander()
 	# Error function
 	message="$1"
 	secho "ERROR: $message"
-	osascript -e "tell app \"System Events\"" -e "activate" -e "display dialog \"$message\" buttons {\"OK\"} default button {\"OK\"} with title \"Error\"" -e "end tell"
+	osascript -e "tell app \"System Events\"" -e "activate" -e "display dialog \"$message\" buttons {\"OK\"} default button {\"OK\"} with title \"Error\"" -e "end tell" > /dev/null
 	cp "$logto/$log" "$backuppath/$log.ERROR.log"
 	rm "$logto/$log"
 	killall "Casper Imaging"
