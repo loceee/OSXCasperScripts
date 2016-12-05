@@ -138,8 +138,7 @@ def main():
 	if args.end:
 		if os.path.isfile(prefs):
 			os.remove(prefs)
-		sendAppleScript("quit")
-
+		subprocess.check_output(['killall','ProgressScreen'])
 
 if __name__ == "__main__":
     main()
