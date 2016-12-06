@@ -62,7 +62,8 @@ def getArguments():
 	if len(sys.argv[1:])==0:
 	    parser.print_help()
 	    parser.exit()
-	return parser.parse_args()
+	args = parser.parse_known_args()[0]
+	return args
 
 def sendAppleScript(command):
 	'''
