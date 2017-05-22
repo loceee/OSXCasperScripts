@@ -41,9 +41,11 @@ import argparse
 import shlex
 import subprocess
 import argparse
+import time
 
 progress_screen_app = "/Library/Management/bin/ProgressScreen.app"
 prefs = "/tmp/.progressscreen_helper"
+jamf_log="/var/log/jamf.log"
 
 def getArguments():
 	'''
@@ -51,13 +53,15 @@ def getArguments():
 	'''
 	parser = argparse.ArgumentParser()
 	parser.add_argument("jamf-arguments", nargs="*", help='toss in all the jamf arguments in here')
-	parser.add_argument('--start', nargs='?', const='_empty_', metavar='[html_path]', help='start ProgressScreen with [html_path]')
+	parser.add_argument('--start', nargs='?', const='_empty_', metavar='html_path', help='start ProgressScreen with [html_path]')
 	parser.add_argument('--fullscreen', action='store_true', help='set fullscreen mode')
 	parser.add_argument('--hidequit', action='store_true', help='hide the quit button')
-	parser.add_argument('--buildtime', nargs=1, metavar='[build_time_secs]', type=int, help='set [build_time_secs] for progress bar')
-	parser.add_argument('--progress', nargs=1, metavar='[progress_percentage]', type=int, help='set [progress_percentage] (based on build_time_sec) for progress bar')
-	parser.add_argument('--waypoints', nargs=4, metavar='[app.pkg]', help='set waypoints to [app1.pkg] [app2.pkg] [app3.pkg] [app4.pkg]')
+	parser.add_argument('--buildtime', nargs=1, metavar='build_time_secs', type=int, help='set [build_time_secs] for progress bar')
+	parser.add_argument('--progress', nargs=1, metavar='progress_percentage', type=int, help='set [progress_percentage] (based on build_time_sec) for progress bar')
+	parser.add_argument('--waypoints', nargs=4, metavar='app.pkg', help='set waypoints to [app1.pkg] [app2.pkg] [app3.pkg] [app4.pkg]')
+	parser.add_argument('--message', nargs='?', const='_empty_', metavar='log_message', help='write an entry to jamf.log that ProgressScreen will display')
 	parser.add_argument('--end', action='store_true', help='quit the app and remove temp file')
+	parser.add_argument('--sleep', nargs=1, metavar='sleep_secs', type=int, help='sleep for [sleep_secs]')
 
 	if len(sys.argv[1:])==0:
 	    parser.print_help()
@@ -72,7 +76,6 @@ def sendAppleScript(command):
 	osa_full_command = shlex.split("""osascript -e 'tell application "ProgressScreen"' -e '%s' -e 'end tell'""" % command)
 	subprocess.check_output(osa_full_command)
 
-
 def tellProgressScreen(command, setting):
 	'''
 	tell progress screen to do any of it's tricks - ref.. https://github.com/jason-tratta/ProgressScreen
@@ -82,6 +85,10 @@ def tellProgressScreen(command, setting):
 	 	setting = "True"
 	applescript = "set %s of every configuration to %s" % (command, setting)
 	sendAppleScript(applescript)
+
+def logMessage(message):
+	with open(jamf_log, 'a') as f:
+		f.write('ProgressScreen[]: %s' % message)
 
 def errorHander(error, type):
 	'''
@@ -94,6 +101,16 @@ def errorHander(error, type):
 def main():
 	args = getArguments()
 
+	if args.sleep:
+		sleep_secs = args.sleep[0]
+		time.sleep(sleep_secs)
+
+	if args.message:
+		message = args.message
+		if message == "_empty_":
+			errorHander("i expected a message", "STOP")
+		logMessage(message)
+
 	if args.start:
 		html_path = args.start
 		if html_path == "_empty_":
@@ -103,7 +120,6 @@ def main():
 		# i couldn't figure out quoting passing this to sendAppleScript -derp
 		osa_full_command = shlex.split("""osascript -e 'tell application "ProgressScreen"' -e 'set htmlURL of every configuration to "%s"' -e 'end tell'""" % html_path)
 		subprocess.check_output(osa_full_command)
-
 
 	if args.fullscreen:
 		tellProgressScreen("fullscreen", True)
